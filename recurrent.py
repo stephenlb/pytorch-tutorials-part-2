@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 
 
 class SPINDERMOON(torch.nn.Module):
@@ -14,24 +15,30 @@ class SPINDERMOON(torch.nn.Module):
         self.lstm = torch.nn.LSTM(self.embedding_dim, self.hidden_dim)
         self.l1 = torch.nn.Linear(self.hidden_dim, self.classes)
 
-    def lookup(self, sentence):
-        words = sentence.split(' ')
-        bag = {w:i for i,w  in enumerate(words)}
-        self.dictionary.update(bag)
-        vec = torch.tensor([[self.dictionary[w] for w in words]])
-        return vec
+    def tokenize(self, sentences):
+        vecs = []
+        for sentence in sentences:
+            words = sentence.split(' ')
+            bag = {w:i for i,w  in enumerate(words)}
+            self.dictionary.update(bag)
+            vec = [self.dictionary[w] for w in words]
+            vecs.append(vec)
+        return torch.tensor(vecs)
         
     def forward(self, sentence):
-        out = self.lookup(sentence)
-        out = self.embedding(sentence)
+        out = self.tokenize(sentence)
+        wordcount = len(out[0])
+        out = self.embedding(out)
+        out, _ = self.lstm(out.view(wordcount, 1, -1))
+        out = self.l1(out.view(wordcount, -1))
+        out = F.log_softmax(out, dim=1)
         return out
-        #l = 
-        
+
 model = SPINDERMOON()
 sentence = 'hello Kyle and Jenlu'
-vec = model.lookup(sentence)
+vecs = model.tokenize([sentence])
 print(sentence)
-print(vec)
-
-out = model(vec)
-#print(out)
+print(vecs)
+out = model([sentence])
+print(out)
+print(out.shape)
