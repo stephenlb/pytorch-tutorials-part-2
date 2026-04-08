@@ -2,8 +2,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from cjson import Config
 
-dictionary = {}
+dictionary = Config(config_name='lstm-dictionary.json')
+print(dictionary)
+
 tags = { w:i for i, w in enumerate(["determiner", "noun", "verb"])}
 print("tags")
 print(tags)
@@ -26,3 +29,17 @@ def build_dictionary(data):
 build_dictionary(training_data)
 print("dictionary")
 print(dictionary)
+
+
+EMBEDDING_DIM = 6
+HIDDEN_DIM = 6
+
+
+
+class LSTMTagger(nn.Module):
+    def __init__(self, embedding_dims, hidden_dims, vocab_size, num_classes):
+        super(LSTMTagger, self).__init__()
+
+
+
+
