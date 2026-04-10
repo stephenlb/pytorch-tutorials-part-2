@@ -1,11 +1,11 @@
 {
-    "the": 3,
+    "the": 0,
     "dog": 1,
     "ate": 2,
     "apple": 4,
     "crow": 5,
-    "can": 6,
-    "fly": 7,
-    "to": 8,
-    "water": 10
+    "fly": 6,
+    "to": 7,
+    "water": 8,
+    "can": 10
 }

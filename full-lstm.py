@@ -19,39 +19,42 @@ def build_tags(data):
             if not(tag in tags)
         })
 
+print(len(dictionary))
 def build_dictionary(data):
     for sample in data:
         offset = len(dictionary)
-        dictionary.update({
-            word: index + offset
-            for index, word in enumerate(sample[0].lower().split(' '))
-            if not(word in dictionary)
-        })
+        #print([
+        #    [[index+ offset], index, offset]
+        #    for index, word in enumerate(sample[0].lower().split())
+        #    if not(word in dictionary)
+        #])
 
-## TODO
-def vectorize(data):
-    #features = [dictionary[x[0]] for x in training_data]
-    #labels = [tags[y[1] for y in training_data]
-    pass
+        for index, word in enumerate(sample[0].lower().split()):
+            if word in dictionary: continue
+            dictionary.update({
+                word: index + offset
+            })
+
+def vectorize(data: list):
+    features = [
+        [dictionary[word] for word in x[0].lower().split()]
+        for x in data
+    ]
+    labels   = [[tags[tag] for tag in y[1]] for y in data]
+    return features, labels
 
 ## Data Preparation 
 training_data = [
     ("The dog ate the apple", ["determiner", "noun", "verb", "determiner", "noun"]),
+    ("The crow fly to water", ["determiner", "noun", "verb", "determiner", "noun"]),
     ("The crow can fly to the water", ["determiner", "noun", "verb", "verb", "verb", "determiner", "noun"]),
 ]
-build_dictionary(training_data)
-print("dictionary")
-print(dictionary)
-
-build_tags(training_data)
-print("tags")
-print(tags)
 
 
-EMBEDDING_DIM = 6
-HIDDEN_DIM = 6
 
 
+EMBEDDING_DIMS = 6
+HIDDEN_DIMS = 6
 class LSTMTagger(nn.Module):
     def __init__(self, embedding_dims, hidden_dims, vocab_size, num_classes):
         super(LSTMTagger, self).__init__()
@@ -65,13 +68,44 @@ class LSTMTagger(nn.Module):
         self.l1 = nn.Linear(hidden_dims, num_classes)
 
     def forward(self, sentences):
+        #return sentences
         out = self.embedding(sentences)
         out, _ = self.lstm(out.view(len(sentences), 1, -1))
         out = self.l1(out.view(len(sentences), 1, -1))
-        out = nn.log_softmax(out, dim=1)
+        out = torch.nn.functional.log_softmax(out, dim=0)
+
         return out
 
 
+## Prepare Data
+build_dictionary(training_data)
+print("dictionary")
+print(dictionary)
 
+build_tags(training_data)
+#print("tags")
+#print(tags)
 
+features, labels = vectorize(training_data)
+#print("features")
+#print(features)
+#print("labels")
+#print(labels)
+
+## Training Phase
+learning_rate = 0.1
+model = LSTMTagger(EMBEDDING_DIMS, HIDDEN_DIMS, len(dictionary), len(tags))
+loss = nn.NLLLoss()
+optim = torch.optim.SGD(model.parameters(), lr=learning_rate)
+
+@torch.no_grad
+def test_no_train():
+    out = model(torch.tensor(features[0]))
+    print(out)
+    out = model(torch.tensor(features[1]))
+    print(out)
+    #out = model(torch.tensor(features[2]))
+    #print(out)
+
+test_no_train()
 
