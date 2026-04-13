@@ -22,17 +22,10 @@ def build_tags(data):
 print(len(dictionary))
 def build_dictionary(data):
     for sample in data:
-        offset = len(dictionary)
-        #print([
-        #    [[index+ offset], index, offset]
-        #    for index, word in enumerate(sample[0].lower().split())
-        #    if not(word in dictionary)
-        #])
-
         for index, word in enumerate(sample[0].lower().split()):
             if word in dictionary: continue
             dictionary.update({
-                word: index + offset
+                word: len(dictionary)
             })
 
 def vectorize(data: list):
@@ -53,8 +46,6 @@ training_data = [
 
 
 
-EMBEDDING_DIMS = 6
-HIDDEN_DIMS = 6
 class LSTMTagger(nn.Module):
     def __init__(self, embedding_dims, hidden_dims, vocab_size, num_classes):
         super(LSTMTagger, self).__init__()
@@ -68,10 +59,10 @@ class LSTMTagger(nn.Module):
         self.l1 = nn.Linear(hidden_dims, num_classes)
 
     def forward(self, sentences):
-        #return sentences
         out = self.embedding(sentences)
         out, _ = self.lstm(out.view(len(sentences), 1, -1))
         out = self.l1(out.view(len(sentences), 1, -1))
+        #return out
         out = torch.nn.functional.log_softmax(out, dim=0)
 
         return out
@@ -93,6 +84,8 @@ features, labels = vectorize(training_data)
 #print(labels)
 
 ## Training Phase
+EMBEDDING_DIMS = 12
+HIDDEN_DIMS = 6
 learning_rate = 0.1
 model = LSTMTagger(EMBEDDING_DIMS, HIDDEN_DIMS, len(dictionary), len(tags))
 loss = nn.NLLLoss()
@@ -104,8 +97,13 @@ def test_no_train():
     print(out)
     out = model(torch.tensor(features[1]))
     print(out)
-    #out = model(torch.tensor(features[2]))
-    #print(out)
+    print(torch.tensor(features[0]))
+    print(torch.tensor(features[2]))
+    print(torch.tensor(features[1]))
+    print(dictionary)
+    print(len(dictionary))
+    out = model(torch.tensor(features[2]))
+    print(out)
 
 test_no_train()
 
