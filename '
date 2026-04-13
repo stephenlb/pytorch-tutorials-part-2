@@ -9,6 +9,7 @@ tags = Config(config_name='lstm-tags.json') ## Labels
 print(dictionary)
 print(tags)
 
+
 def build_tags(data):
     for sample in data:
         offset = len(tags) + 1
@@ -28,18 +29,11 @@ def build_dictionary(data):
             })
 
 def vectorize(data: list):
-    max_sentence_length = max([len(x[0].split()) for x in data])
-    print(f'{max_sentence_length=}')
     features = [
-        [word < len(sentence[0].split()) and dictionary[sentence[0].lower().split()[word]] or 0
-            for word in range(max_sentence_length)]
-        for sentence in data
+        [dictionary[word] for word in x[0].lower().split()]
+        for x in data
     ]
-    labels = [
-        [tag < len(y[1]) and tags[y[1][tag]] or 0
-            for tag in range(max_sentence_length)]
-        for y in data]
-
+    labels   = [[tags[tag] for tag in y[1]] for y in data]
     return features, labels
 
 ## Data Preparation 
@@ -63,14 +57,13 @@ class LSTMTagger(nn.Module):
 
     def forward(self, sentences):
         out = self.embedding(sentences)
-        out, _ = self.lstm(out)
-        #out, _ = self.lstm(out.view(len(sentences), 1, -1))
-        out = self.l1(out)
-        #out = self.l1(out.view(len(sentences), 1, -1))
+        out, _ = self.lstm(out.view(len(sentences), 1, -1))
+        out = self.l1(out.view(len(sentences), 1, -1))
         #return out
         out = torch.nn.functional.log_softmax(out, dim=0)
 
         return out
+
 
 ## Prepare Data
 build_dictionary(training_data)
@@ -82,7 +75,6 @@ build_tags(training_data)
 #print(tags)
 
 features, labels = vectorize(training_data)
-print(labels)
 #print("features")
 #print(features)
 #print("labels")
@@ -91,10 +83,9 @@ print(labels)
 ## Training Phase
 EMBEDDING_DIMS = 12
 HIDDEN_DIMS = 6
-EPOCHS = 10
 learning_rate = 0.1
 model = LSTMTagger(EMBEDDING_DIMS, HIDDEN_DIMS, len(dictionary), len(tags))
-criterian = nn.NLLLoss()
+loss = nn.NLLLoss()
 optim = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
 @torch.no_grad
@@ -111,16 +102,9 @@ def test_no_train():
     out = model(torch.tensor(features[2]))
     print(out)
 
-def train():
-    for epoch in range(EPOCHS):
-        model.zero_grad()
-        out = model(torch.tensor(features))
-        answers = torch.argmax(out)
-        #print(out)
-        print(answers)
-        #loss = criterian(answers, torch.tensor(labels))
-        #print(delta)
-        #optim.
+test_no_train()
 
-#test_no_train()
-train()
+
+
+def train():
+    
