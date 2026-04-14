@@ -1,5 +1,6 @@
 {
-    "determiner": 1,
+    "mask": 0,
+    "noun": 1,
     "verb": 2,
-    "noun": 3
+    "determiner": 3
 }

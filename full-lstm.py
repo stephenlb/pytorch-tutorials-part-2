@@ -11,7 +11,7 @@ print(tags)
 
 def build_tags(data):
     for sample in data:
-        offset = len(tags) + 1
+        offset = len(tags)
         tags.update({
             tag: index + offset
             for index, tag in enumerate(set(sample[1]))
@@ -35,8 +35,14 @@ def vectorize(data: list):
             for word in range(max_sentence_length)]
         for sentence in data
     ]
+
     labels = [
         [tag < len(y[1]) and tags[y[1][tag]] or 0
+            for tag in range(max_sentence_length)]
+        for y in data]
+
+    old_labels = [
+        [[tag < len(y[1]) and tags[y[1][tag]] or 0 for t in range(len(tags))]
             for tag in range(max_sentence_length)]
         for y in data]
 
@@ -81,17 +87,10 @@ build_tags(training_data)
 #print("tags")
 #print(tags)
 
-features, labels = vectorize(training_data)
-print(labels)
-#print("features")
-#print(features)
-#print("labels")
-#print(labels)
-
 ## Training Phase
 EMBEDDING_DIMS = 12
 HIDDEN_DIMS = 6
-EPOCHS = 10
+EPOCHS = 1
 learning_rate = 0.1
 model = LSTMTagger(EMBEDDING_DIMS, HIDDEN_DIMS, len(dictionary), len(tags))
 criterian = nn.NLLLoss()
@@ -99,6 +98,7 @@ optim = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
 @torch.no_grad
 def test_no_train():
+    features, labels = vectorize(training_data)
     out = model(torch.tensor(features[0]))
     print(out)
     out = model(torch.tensor(features[1]))
@@ -112,14 +112,21 @@ def test_no_train():
     print(out)
 
 def train():
+    model.train()
+    features, labels = vectorize(training_data)
+    labels = torch.tensor(labels)
+    featuers = torch.tensor(features)
     for epoch in range(EPOCHS):
         model.zero_grad()
-        out = model(torch.tensor(features))
-        answers = torch.argmax(out)
-        #print(out)
-        print(answers)
-        #loss = criterian(answers, torch.tensor(labels))
-        #print(delta)
+        out = model(featuers)
+        for index in range(len(labels)):
+            print(out[index])
+            print(labels[index])
+            delta = criterian(out[index], labels[index])
+            print(delta)
+        #print(out[0].shape)
+        #print(labels[0].shape)
+        #print(f'Epoch = {epoch+1}')
         #optim.
 
 #test_no_train()
