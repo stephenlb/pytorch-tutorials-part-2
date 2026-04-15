@@ -4,12 +4,11 @@ import torch.nn.functional as F
 import torch.optim as optim
 from cjson import Config
 
-dictionary = Config(config_name='lstm-dictionary.json') ## Features
-tags = Config(config_name='lstm-tags.json') ## Labels
-print(dictionary)
-print(tags)
+dictionary = {}#Config(config_name='lstm-dictionary.json') ## Features
+tags = {}#Config(config_name='lstm-tags.json') ## Labels
 
 def build_tags(data):
+    tags.update({"mask": 0})
     for sample in data:
         offset = len(tags)
         tags.update({
@@ -18,8 +17,8 @@ def build_tags(data):
             if not(tag in tags)
         })
 
-print(len(dictionary))
 def build_dictionary(data):
+    dictionary.update({"mask": 0})
     for sample in data:
         for index, word in enumerate(sample[0].lower().split()):
             if word in dictionary: continue
@@ -31,18 +30,18 @@ def vectorize(data: list):
     max_sentence_length = max([len(x[0].split()) for x in data])
     print(f'{max_sentence_length=}')
     features = [
-        [word < len(sentence[0].split()) and dictionary[sentence[0].lower().split()[word]] or 0
+        [word < len(sentence[0].split()) and dictionary[sentence[0].lower().split()[word]] or dictionary['mask']
             for word in range(max_sentence_length)]
         for sentence in data
     ]
 
     labels = [
-        [tag < len(y[1]) and tags[y[1][tag]] or 0
+        [tag < len(y[1]) and tags[y[1][tag]] or tags['mask']
             for tag in range(max_sentence_length)]
         for y in data]
 
     old_labels = [
-        [[tag < len(y[1]) and tags[y[1][tag]] or 0 for t in range(len(tags))]
+        [[tag < len(y[1]) and (tags[y[1][tag]] == t and 1) or tags['mask'] for t in range(len(tags))]
             for tag in range(max_sentence_length)]
         for y in data]
 
@@ -67,15 +66,13 @@ class LSTMTagger(nn.Module):
         self.lstm = nn.LSTM(embedding_dims, hidden_dims)
         self.l1 = nn.Linear(hidden_dims, num_classes)
 
-    def forward(self, sentences):
-        out = self.embedding(sentences)
-        out, _ = self.lstm(out)
-        #out, _ = self.lstm(out.view(len(sentences), 1, -1))
-        out = self.l1(out)
-        #out = self.l1(out.view(len(sentences), 1, -1))
-        #return out
-        out = torch.nn.functional.log_softmax(out, dim=0)
-
+    def forward(self, sentence):
+        out    = self.embedding(sentence)
+        #out, _ = self.lstm(out.unsqueeze(1))
+        #out    = self.l1(out.unsqueeze(1))
+        out, _ = self.lstm(out.view(len(sentence), 1, -1))
+        out    = self.l1(out.view(len(sentence), 1, -1))
+        out    = torch.nn.functional.log_softmax(out, dim=0)
         return out
 
 ## Prepare Data
@@ -84,8 +81,8 @@ print("dictionary")
 print(dictionary)
 
 build_tags(training_data)
-#print("tags")
-#print(tags)
+print("tags")
+print(tags)
 
 ## Training Phase
 EMBEDDING_DIMS = 12
@@ -99,8 +96,12 @@ optim = torch.optim.SGD(model.parameters(), lr=learning_rate)
 @torch.no_grad
 def test_no_train():
     features, labels = vectorize(training_data)
-    out = model(torch.tensor(features[0]))
+    labels = torch.tensor(labels)
+    features = torch.tensor(features)
+    print(features[0])
+    out = model(features[0])
     print(out)
+    return
     out = model(torch.tensor(features[1]))
     print(out)
     print(torch.tensor(features[0]))
@@ -115,19 +116,29 @@ def train():
     model.train()
     features, labels = vectorize(training_data)
     labels = torch.tensor(labels)
-    featuers = torch.tensor(features)
+    features = torch.tensor(features)
+    #print("features")
+    #print(features)
+    #print("labels")
+    #print(labels)
     for epoch in range(EPOCHS):
-        model.zero_grad()
-        out = model(featuers)
         for index in range(len(labels)):
-            print(out[index])
-            print(labels[index])
-            delta = criterian(out[index], labels[index])
-            print(delta)
-        #print(out[0].shape)
-        #print(labels[0].shape)
-        #print(f'Epoch = {epoch+1}')
-        #optim.
+            target = labels[index]
+            sentence = features[index]
+            #print(target)
+            #print(sentence)
+            model.zero_grad()
+            out = model(sentence)
+            out = out.squeeze(1)
+            #print("out")
+            #print(out)
+            #print(out.shape)
+            #print("target")
+            #print(target)
+            #print(target.shape)
+            delta = criterian(out, target)
+            delta.backward()
+            optim.step()
 
 #test_no_train()
 train()
