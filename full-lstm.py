@@ -87,8 +87,8 @@ print(tags)
 ## Training Phase
 EMBEDDING_DIMS = 12
 HIDDEN_DIMS = 6
-EPOCHS = 1
-learning_rate = 0.1
+EPOCHS = 3000
+learning_rate = 0.01
 model = LSTMTagger(EMBEDDING_DIMS, HIDDEN_DIMS, len(dictionary), len(tags))
 criterian = nn.NLLLoss()
 optim = torch.optim.SGD(model.parameters(), lr=learning_rate)
@@ -139,6 +139,7 @@ def train():
             delta = criterian(out, target)
             delta.backward()
             optim.step()
+            print(delta.item())
 
 #test_no_train()
 train()
