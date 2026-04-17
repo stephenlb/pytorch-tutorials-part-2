@@ -35,40 +35,40 @@ def build_dictionary_character_level(data):
                 char: len(dictionary)
             })
 
+
+
 def vectorize(data: list):
-    max_characters = max([len(x[0]) for x in data])
-    max_words = max([len(x[0].split()) for x in data])
-    print(f'{max_characters=}')
-    print(f'{max_words=}')
+    max_sentence_length = max([len(x[0].split()) for x in data])
+    print(f'{max_sentence_length=}')
 
-    #old_features = [
-    #    [word < len(sentence[0].split()) and dictionary[sentence[0].lower().split()[word]] or dictionary['mask']
-    #        for word in range(max_sentence_length)]
-    #    for sentence in data
-    #]
+    normalized = [
+        [word < len(sentence[0].split()) and sentence[0].lower().split()[word] or ""
+            for word in range(max_sentence_length)]
+        for sentence in data
+    ]
 
-    ## Generaete Letters Vector
-    features = []
-    for sample in data:
-        chars = list(sample[0].lower())
-        length = len(chars)
-        feature = []
-        for index in range(max_characters):
-            if index < length:
-                feature.append(dictionary[chars[index]])
-            else:
-                feature.append(dictionary['mask'])
-        features.append(feature)
-        
+    max_word_length = max(max(len(x) for x in s) for s in normalized)
+    print(f'{max_word_length=}')
+
+    features = [
+
+        [[c < len(word) and dictionary[word[c]] or dictionary['mask']
+            for c in range(max_word_length)]
+
+        for word in sentence]
+        for sentence in normalized
+    ]
+
+
     labels = [
         [tag < len(y[1]) and tags[y[1][tag]] or tags['mask']
-            for tag in range(max_words)]
+            for tag in range(max_sentence_length)]
         for y in data]
 
-    #old_labels = [
-    #    [[tag < len(y[1]) and (tags[y[1][tag]] == t and 1) or tags['mask'] for t in range(len(tags))]
-    #        for tag in range(max_sentence_length)]
-    ##    for y in data]
+    old_labels = [
+        [[tag < len(y[1]) and (tags[y[1][tag]] == t and 1) or tags['mask'] for t in range(len(tags))]
+            for tag in range(max_sentence_length)]
+        for y in data]
 
     return features, labels
 
@@ -88,29 +88,23 @@ class LSTMTagger(nn.Module):
         self.num_classes    = num_classes ## how many things are we classifying
 
         self.embedding = nn.Embedding(vocab_size, embedding_dims)
-        self.letter_embedding = nn.Embedding(vocab_size, embedding_dims)
         ## TODO CHAR LEVEL LSTM
         self.lstm_letter = nn.LSTM(embedding_dims, hidden_dims)
-        self.word_embedding = nn.Embedding(vocab_size, embedding_dims)
         self.lstm_word = nn.LSTM(hidden_dims, hidden_dims)
         self.l1 = nn.Linear(hidden_dims, hidden_dims)
-        self.l2 = nn.Linear(hidden_dims, num_classes)
 
     def forward(self, sentence):
+        #this but the first dim is sentance
         out    = self.embedding(sentence)
-        ## TODO 
-        #out, _ = self.lstm(out.unsqueeze(1))
-        #out    = self.l1(out.unsqueeze(1))
-        out, _ = self.lstm_letter(out.view(len(sentence), 1, -1))
-
-        out, _ = self.lstm_word(out.view(len(sentence), 1, -1))
-        out    = self.l1(out.view(len(sentence), 1, -1))
-        out    = self.l2(out)
+        out, _ = self.lstm_letter(out)
+        # print(f'shape letter output {out.shape}')
+        out, _ = self.lstm_word(out.mean(1)[None])
+        # print(f'shape word output {out.shape}')
+        out    = self.l1(out[0])
         out    = torch.nn.functional.log_softmax(out, dim=0)
         return out
 
 ## Prepare Data
-#build_dictionary(training_data)
 build_dictionary_character_level(training_data)
 print("dictionary")
 print(dictionary)
@@ -120,11 +114,10 @@ print("tags")
 print(tags)
 
 ## Training Phase
-## TODO
 EMBEDDING_DIMS = 12
 HIDDEN_DIMS = 6
-EPOCHS = 1
-learning_rate = 0.07
+EPOCHS = 3000
+learning_rate = 0.01
 model = LSTMTagger(EMBEDDING_DIMS, HIDDEN_DIMS, len(dictionary), len(tags))
 criterian = nn.NLLLoss()
 optim = torch.optim.SGD(model.parameters(), lr=learning_rate)
@@ -148,12 +141,6 @@ def test_no_train():
     out = model(torch.tensor(features[2]))
     print(out)
 
-#features, labels = vectorize(training_data)
-#print("features")
-#print(features[0])
-#print("labels")
-#print(labels[0])
-
 def train():
     model.train()
     features, labels = vectorize(training_data)
@@ -172,15 +159,13 @@ def train():
             model.zero_grad()
             out = model(sentence)
             out = out.squeeze(1)
+            #print("out")
             #print(out)
-            print("out")
-            print(out)
             print(out.shape)
-            print("target")
-            print(target)
+            #print("target")
+            #print(target)
             print(target.shape)
             delta = criterian(out, target)
-            continue
             delta.backward()
             optim.step()
             print(delta.item())
