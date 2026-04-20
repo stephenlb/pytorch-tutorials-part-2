@@ -1,12 +1,11 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from cjson import Config
 
-dictionary = {}#Config(config_name='lstm-dictionary.json') ## Features
-tags = {}#Config(config_name='lstm-tags.json') ## Labels
+dictionary = {} ## Tokens word-level tokens -> letter-level tokensk 
+tags = {}       ## target output tokens "word classification"
 
+
+## Tokenize our output
 def build_tags(data):
     tags.update({"mask": 0})
     for sample in data:
@@ -17,14 +16,14 @@ def build_tags(data):
             if not(tag in tags)
         })
 
-def build_dictionary(data):
-    dictionary.update({"mask": 0})
-    for sample in data:
-        for index, word in enumerate(sample[0].lower().split()):
-            if word in dictionary: continue
-            dictionary.update({
-                word: len(dictionary)
-            })
+#def build_dictionary_word_level(data):
+#    dictionary.update({"mask": 0})
+#    for sample in data:
+#        for index, word in enumerate(sample[0].lower().split()):
+#            if word in dictionary: continue
+#            dictionary.update({
+#                word: len(dictionary)
+#            })
 
 def build_dictionary_character_level(data):
     dictionary.update({"mask": 0})
@@ -34,8 +33,6 @@ def build_dictionary_character_level(data):
             dictionary.update({
                 char: len(dictionary)
             })
-
-
 
 def vectorize(data: list):
     max_sentence_length = max([len(x[0].split()) for x in data])
@@ -80,28 +77,31 @@ training_data = [
 ]
 
 class LSTMTagger(nn.Module):
-    def __init__(self, embedding_dims, hidden_dims, vocab_size, num_classes):
+    def __init__(self, embedding_dims, hidden_dims, vocab_size, num_classes, padidx=0):
         super(LSTMTagger, self).__init__()
         self.embedding_dims = embedding_dims
         self.hidden_dims    = hidden_dims
         self.vocab_size     = vocab_size
         self.num_classes    = num_classes ## how many things are we classifying
 
-        self.embedding = nn.Embedding(vocab_size, embedding_dims)
-        ## TODO CHAR LEVEL LSTM
+        self.embedding = nn.Embedding(vocab_size, embedding_dims, padding_idx=padidx)
         self.lstm_letter = nn.LSTM(embedding_dims, hidden_dims)
         self.lstm_word = nn.LSTM(hidden_dims, hidden_dims)
-        self.l1 = nn.Linear(hidden_dims, hidden_dims)
+        self.l1 = nn.Linear(hidden_dims, num_classes)
 
     def forward(self, sentence):
         #this but the first dim is sentance
-        out    = self.embedding(sentence)
+
+        out    = self.embedding(sentence) ## letter tokens
         out, _ = self.lstm_letter(out)
-        # print(f'shape letter output {out.shape}')
+        #print(f'shape letter output {out.shape}')
         out, _ = self.lstm_word(out.mean(1)[None])
-        # print(f'shape word output {out.shape}')
+        #print(out)
+        #print(f'shape word output {out.shape}')
         out    = self.l1(out[0])
-        out    = torch.nn.functional.log_softmax(out, dim=0)
+        #print(out)
+        out    = torch.nn.functional.log_softmax(out, dim=1)
+        #print(out)
         return out
 
 ## Prepare Data
@@ -114,11 +114,17 @@ print("tags")
 print(tags)
 
 ## Training Phase
-EMBEDDING_DIMS = 12
+EMBEDDING_DIMS = 3
 HIDDEN_DIMS = 6
-EPOCHS = 3000
-learning_rate = 0.01
-model = LSTMTagger(EMBEDDING_DIMS, HIDDEN_DIMS, len(dictionary), len(tags))
+EPOCHS = 30000
+learning_rate = 0.02
+model = LSTMTagger(
+    EMBEDDING_DIMS,
+    HIDDEN_DIMS,
+    len(dictionary),
+    len(tags),
+    padidx=dictionary["mask"],
+)
 criterian = nn.NLLLoss()
 optim = torch.optim.SGD(model.parameters(), lr=learning_rate)
 
@@ -146,27 +152,28 @@ def train():
     features, labels = vectorize(training_data)
     labels = torch.tensor(labels)
     features = torch.tensor(features)
-    #print("features")
-    #print(features)
-    #print("labels")
-    #print(labels)
+    print("features")
+    print(features)
+    print("labels")
+    print(labels)
     for epoch in range(EPOCHS):
         for index in range(len(labels)):
-            target = labels[index]
             sentence = features[index]
+            target = labels[index]
             #print(target)
             #print(sentence)
             model.zero_grad()
             out = model(sentence)
+            #print(out)
             out = out.squeeze(1)
             #print("out")
             #print(out)
-            print(out.shape)
+            #print(out.shape)
             #print("target")
             #print(target)
-            print(target.shape)
-            delta = criterian(out, target)
-            delta.backward()
+            #print(target.shape)
+            delta = criterian(out, target) ## calculate the loss (error) entropy
+            delta.backward() ## calculate gradients for learning
             optim.step()
             print(delta.item())
 
