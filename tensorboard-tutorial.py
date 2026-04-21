@@ -13,9 +13,11 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 # Gather datasets and prepare them for consumption
-transform = transforms.Compose(
-    [transforms.ToTensor(),
-    transforms.Normalize((0.5,), (0.5,))])
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Resize((200, 200)),
+    transforms.Normalize((0.5,), (0.5,)),
+])
 
 # Store separate training and validations splits in ./data
 training_set = torchvision.datasets.OxfordIIITPet('./data',
@@ -37,34 +39,46 @@ validation_loader = torch.utils.data.DataLoader(validation_set,
                                                 shuffle=False)
 
 # Class labels
-classes = ('T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
-        'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle Boot')
+#classes = ('T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
+#        'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle Boot')
+#classes = ('cat', 'dog')
+
+
+
+class Net(torch.nn.Module):
+    def __init__(self, classes=10):
+        super(Net, self).__init__()
+        self.c1   = torch.nn.Conv2d(1, 6, 10)
+        self.pool = torch.nn.MaxPool2d(2, 2)
+        self.c2   = torch.nn.Conv2d(10, 20, 6)
+        self.l1   = torch.nn.Linear(20 * 3 * 3, 120)
+        self.l2   = torch.nn.Linear(120, 120)
+        self.l3   = torch.nn.Linear(120, classes)
+
+    def forward(self, inputs):
+        return inputs
+        out = self.pool(F.relu(self.c1(inputs)))
+        return out
+        out = self.pool(F.relu(self.c2(inputs)))
+        out = out.view(-1, 20 * 3 * 3) ## Flatten the 2d matrix to 1d vectors
+        out = F.relu(self.l1(out))
+        out = F.relu(self.l2(out))
+        out = self.l3(out)
+        return inputs
+
 
 # Helper function for inline image display
-def matplotlib_imshow(img, one_channel=False):
-    if one_channel:
-        img = img.mean(dim=0)
-    img = img / 2 + 0.5     # unnormalize
-    npimg = img.numpy()
-    if one_channel:
-        plt.imshow(npimg)
-    else:
-        plt.imshow(np.transpose(npimg, (1, 2, 0)))
-    plt.show()
-
 # Extract a batch of 4 images
 dataiter = iter(training_loader)
-
-# Create a grid from the images and show them
-#matplotlib_imshow(img_grid, one_channel=True)
-
+labelIterator = iter(training_loader)
 writer = SummaryWriter('runs/exp1')
+classes = 36
+model = Net(classes)
 
-for i in range(20):
-    images, labels = next(dataiter)
-    img_grid = torchvision.utils.make_grid(images)
-    writer.add_image('Cat or Dog?', img_grid)
-    images, labels = next(dataiter)
-    writer.flush()
-
-
+for i in range(30):
+    image, label = next(dataiter)
+    out = model(image)
+    print(out)
+    img_grid = torchvision.utils.make_grid(image)
+    writer.add_image(f'{i}: Cat or Dog: {label}' , img_grid)
+writer.flush()
