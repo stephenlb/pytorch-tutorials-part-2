@@ -17,25 +17,37 @@ transform = transforms.Compose([
     transforms.Resize((200, 200)), ## TODO test if this will fix our loss reduction
     transforms.Normalize((0.5,), (0.5,)),
 ])
+classes = 37
+one_hot = transforms.Lambda(
+    lambda y: torch.zeros(classes, dtype=torch.float)
+        .scatter_(0, torch.tensor(y), value=1)
+)
+target_transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Lambda(lambda y: torch.zeros(
+        classes, dtype=torch.float
+    ).scatter_(0., y, value=1.)),
+])
 
 # Store separate training and validations splits in ./data
 training_set = torchvision.datasets.OxfordIIITPet('./data',
     download=True,
     #train=True,
-    transform=transform)
-validation_set = torchvision.datasets.OxfordIIITPet('./data',
-    download=True,
-    #train=False,
-    transform=transform)
+    transform=transform,
+    target_transform=one_hot)
+#validation_set = torchvision.datasets.OxfordIIITPet('./data',
+#    download=True,
+#    #train=False,
+#    transform=transform)
 
 training_loader = torch.utils.data.DataLoader(training_set,
                                               batch_size=8,
                                               shuffle=True)
 
 
-validation_loader = torch.utils.data.DataLoader(validation_set,
-                                                batch_size=8,
-                                                shuffle=False)
+#validation_loader = torch.utils.data.DataLoader(validation_set,
+#                                                batch_size=8,
+#                                                shuffle=False)
 
 # Class labels
 #classes = ('T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat',
@@ -73,8 +85,7 @@ class Net(torch.nn.Module):
 # Helper function for inline image display
 # Extract a batch of 4 images
 device = torch.accelerator.current_accelerator()
-classes = 37
-epochs = 20000
+epochs = 20
 model = Net(classes).to(device)
 writer = SummaryWriter('runs/exp1')
 criterion = torch.nn.CrossEntropyLoss()
@@ -87,7 +98,6 @@ losses = []
 ## TODO 
 ## TODO  finish the tensor board tutorial
 ## TODO 
-## TODO  one hot output
 ## TODO 
 ## TODO  RELU activation - this wasn't as good as gelu
 ## TODO  kernel size of 3
@@ -99,6 +109,7 @@ losses = []
 ## TODO 
 
 ## TODO DONE
+## TODO one_hot output ✅
 ## TODO tensor board output loss graph ✅
 ## TODO update model convolutions and ✅
 ## TODO fix model ✅
@@ -109,6 +120,7 @@ losses = []
 for epoch in range(epochs):
     print(f'epoch number {epoch} starting!')
     dataiter = iter(training_loader)
+    #for batch, data in enumerate(dataiter):
     for batch, (images, labels) in enumerate(dataiter):
         optimizer.zero_grad()
         out = model(images.to(device))
@@ -131,4 +143,44 @@ for epoch in range(epochs):
         #if batch % 100 == 0:
         #    img_grid = torchvision.utils.make_grid(images)
         #    writer.add_image(f'{epoch}: Cat or Dog: {labels}' , img_grid)
+
+## Draw our model graph
+#dataiter = iter(training_loader)
+#images, labels = next(dataiter)
+#writer.add_graph(model, images.to(device))
+#writer.flush()
+#writer.close()
+
+
+# Select a random subset of data and corresponding labels
+def select_n_random(data, labels, n=100):
+    assert len(data) == len(labels)
+
+    perm = torch.randperm(len(data))
+    return data[perm][:n], labels[perm][:n]
+
+transform = transforms.Compose(
+    [transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,))])
+training_set = torchvision.datasets.FashionMNIST('./data',
+    download=True,
+    train=True,
+    transform=transform)
+training_loader = torch.utils.data.DataLoader(training_set,
+                                              batch_size=8,
+                                              shuffle=True)
+# Extract a random subset of data
+#dataiter = iter(training_loader)
+dataiter = iter(training_set)
+images, labels = next(dataiter)
+
+# get the class labels for each image
+class_labels = [label for label in [labels]]
+
+# log embeddings
+features = images.view(-1, 28 * 28)
+writer.add_embedding(features,
+                    metadata=class_labels,
+                    label_img=images.unsqueeze(1))
+writer.flush()
 writer.close()
