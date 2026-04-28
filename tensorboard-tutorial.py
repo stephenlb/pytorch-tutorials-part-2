@@ -166,16 +166,19 @@ training_set = torchvision.datasets.FashionMNIST('./data',
     download=True,
     train=True,
     transform=transform)
-training_loader = torch.utils.data.DataLoader(training_set,
-                                              batch_size=8,
-                                              shuffle=True)
+
+# Select a random subset of data and corresponding labels
+def select_n_random(data, labels, n=100):
+    assert len(data) == len(labels)
+
+    perm = torch.randperm(len(data))
+    return data[perm][:n], labels[perm][:n]
+
 # Extract a random subset of data
-#dataiter = iter(training_loader)
-dataiter = iter(training_set)
-images, labels = next(dataiter)
+images, labels = select_n_random(training_set.data, training_set.targets)
 
 # get the class labels for each image
-class_labels = [label for label in [labels]]
+class_labels = [f'label {label}' for label in labels]
 
 # log embeddings
 features = images.view(-1, 28 * 28)
